@@ -6,7 +6,7 @@ val sc = new SparkContext(conf)
 val orders = sc.textFile("file:///C:/Users/Mahesh/Desktop/data/retail_db/orders/part-00000")
 val order_items= sc.textFile("file:///C:/Users/Mahesh/Desktop/data/retail_db/order_items/part-00000")
 
-/* Setting up hadoop Binaries*/
+/* Setting up hadoop Binaries if run on windows machine*/
 System.setProperty("hadoop.home.dir", "C:/winutils/")
 
 /* Filter the records from ORDERS table with status CLOSED and COMPLETE*/
