@@ -1,0 +1,69 @@
+
+/* Problem Statement
+  Calculate total revenue and also count of number of items for each day
+ */
+import org.apache.spark.SparkConf
+import org.apache.spark.SparkContext
+import com.typesafe.config._
+import org.apache.hadoop.fs.{FileSystem,Path}
+
+object dailyRevenueAndOrderItems {
+
+  def main(args: Array[String]): Unit = {
+
+    val conf= new SparkConf().setMaster("local").setAppName("Daily Revenue")
+    val sc = new SparkContext(conf)
+
+    val ipPath = args(0)
+    val opPath = args(1)
+
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    val op = new Path(opPath)
+
+    if(!fs.exists(new Path(ipPath)))
+      println("Invalid Input path")
+
+    if(fs.exists(op))
+      fs.delete(op, true)
+
+    val orders= sc.textFile(ipPath+"/orders")
+    val order_items=sc.textFile(ipPath+"/order_items")
+    /*
+         val orders = sc.textFile("file:///C:/Users/Mahesh/Desktop/data/retail_db/orders/part-00000")
+         val order_items= sc.textFile("file:///C:/Users/Mahesh/Desktop/data/retail_db/order_items/part-00000")
+  */
+    /* Setting up hadoop Binaries*/
+    System.setProperty("hadoop.home.dir", "C:/winutils/")
+
+
+    val orders_filter= orders.filter(rec=> rec.split(",")(3)=="COMPLETE" || rec.split(",")(3)=="CLOSED")
+    val orders_map = orders_filter.map(rec=>(rec.split(",")(0).toInt,rec.split(",")(1)))
+    val orditm_filter= order_items.map(rec=>(rec.split(",")(1).toInt,rec.split(",")(4).toDouble))
+
+    val orders_join= orders_map.join(orditm_filter)
+
+    val orders_join_map= orders_join.map(rec=>rec._2)
+
+    //RDD[(String,Double)] is the output till here
+     // We are expecting RDD[(String,(Double,Int) that's where we use aggregateByKey as the combiner and reducer logics are different
+
+    val orders_join_map_abk= orders_join_map.aggregateByKey((0.0,0))(
+      //SeqOp or combiner logic
+      (intAgg: (Double,Int),intVal: Double)=> (intAgg._1 + intVal,intAgg._2 + 1),
+     //Reducer Logic
+      // Here in the below statement we are actually aggregating the intermediate output created by previous stepa and the finAgg,intAgg is (0.0,0)
+      //This step works as this logic
+      /*
+         val l= List(100.00,150.00,250.25,300.25,400.50)
+         var total=0.0
+         for (i <- l)
+         total= (total._1+i,total._2+1)
+       */
+      (finAgg: (Double,Int),finVal:(Double,Int)) => (finAgg._1 + finVal._1, finAgg._2 + finVal._2)
+    ).sortByKey().map(rec=> rec.productIterator.mkString("\t")).saveAsTextFile(opPath)
+
+
+    //orders_join_map_rbk.saveAsTextFile("file:///C:/Users/Mahesh/Desktop/output_dailyRevenue/")
+
+  }
+}
